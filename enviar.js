@@ -1,50 +1,46 @@
-function enviar() {
-    //Función para automatizar envios de mails con un url que lleva a un pdf cargado en drive.
-    
-    const hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet()
-    //Columnas -> A: - B: - C: - ... 
-    //Modificar n del bucle de acuerdo a la cantidad de filas
-    //i=2, primera fila etiquetas de la columna en Sheet
-    for (i=2; i <= n; i++){
-      //const varn = hoja.getRange("columna" + i).getValue()
-      const var1 = hoja.getRange("A" + i).getValue()
-      const var2 = hoja.getRange("B" + i).getValue()
-
-      /*
-         El script está pensado para que haya una carpeta en Google Drive que tenga una n cantidad de pdf a enviar. 
-         Cada pdf se envía por medio del url correspondiente
-      */
-      const url = hoja.getRange("C" + i).getValue()
+function enviarCertificados() {
+  var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  //Usaremos una hoja aparte para los errores que pueden ir apareciendo al momento del envío, para estudiar los casos posteriormente.
+  var hojaErrores = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Errores");
   
-      //Mostramos en consola los envios que se vayan a ejecutar con la información  correspondiente
-      Logger.log("id: "+i+ " - Envio para: " +var1+ " - var2: " +var2+ " - url: " +url)
-      
-      /*
-      id del archivo subido a Drive
-      
-      Ejemplo: const idArchivo = "1LAcwWnKMiFBGQ2oJaVHmVB_B6ojLJElG"
-      Expresión regular: /d\/([0-9A-Za-z_]+)[1]
-        d\ -> todo valor después de de la ruta d\
-        []
-        0-9 -> el codigo debe  tener numeros
-        A-Z -> el código debe tener letras mayúsculas
-        a-z -> el código debe tener letras minúsculas
-        + -> debe haber varios caracteres que cumplan con la condición
-        () ->dejo afuera el \d
-        [1] -> al colocar en parentesis devuelve un arreglo:
-          0: url completo
-          1: id del archivo
-      */
-      const idArchivo = url.match(/d\/([0-9A-Za-z_-]+)/)[1]
-      const archivo = DriveApp.getFileById(idArchivo)
-      const blob = archivo.getAs(MimeType.PDF)
-      const mensaje = 'mensaje a enviar';
-  
-      // (destinatario, asunto, mensaje, ajdunto)
-      Gvar2App.sendEvar2(var2, 
-      "asunto",
-      mensaje,
-      {attachments:[blob]}
-      )
-    } 
+  // Si no existe la hoja "Errores", la crea y agrega encabezados
+  if (!hojaErrores) {
+    hojaErrores = SpreadsheetApp.getActiveSpreadsheet().insertSheet("Errores");
+    hojaErrores.appendRow(["Nombre", "Email", "URL Certificado", "Error"]);
   }
+  
+  var datos = hoja.getRange(2, 1, hoja.getLastRow() - 1, 3).getValues(); // Datos desde fila 2 hasta la última
+  var asunto = "Asunto"; //Modificar asunto y mensaje según necesidad
+  
+  datos.forEach(function(fila, i) {
+    var nombre = fila[0]; // Columna A: Nombre
+    var email = fila[1];  // Columna B: Mail
+    var urlCertificado = fila[2]; // Columna C: URL del certificado
+
+    if (email && urlCertificado) { // Verifica que el email y la URL no estén vacíos
+      try {
+        var mensaje = "Hola " + nombre + ",\n\n"
+                    + "Puedes descargar tu certificado en el siguiente enlace:\n\n"
+                    + urlCertificado + "\n\n"
+                    + "Saludos.";
+        
+        MailApp.sendEmail(email, asunto, mensaje);
+        Logger.log("Correo enviado a: " + email);
+        
+      } catch (error) {
+        Logger.log("Error al enviar a: " + email + " - " + error.message);
+        
+        // Guarda en la hoja de errores si no está ya registrado
+        var filasErrores = hojaErrores.getDataRange().getValues();
+        var existe = filasErrores.some(row => row[1] === email); // Verifica si el email ya está registrado en "Errores"
+        
+        if (!existe) {
+          hojaErrores.appendRow([nombre, email, urlCertificado, error.message]);
+        }
+      }
+    }
+  });
+  
+  SpreadsheetApp.getUi().alert("Proceso finalizado. Revisa la hoja 'Errores' para posibles problemas.");
+}
+
